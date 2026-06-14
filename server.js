@@ -200,6 +200,8 @@ app.get("/api/local", async (req, res) => {
   const totalLines = byLanguage.reduce((s, l) => s + l.lines, 0);
   work.linesPerHour = work.totalHours > 0 ? r2(totalLines / work.totalHours) : 0;
   work.totalLines = totalLines;
+  const focus = buildFocus(store.workGaps(since));
+  const records = buildRecords(byModel, byLanguage);
 
   res.json({
     generatedAt: new Date().toISOString(),
@@ -220,6 +222,8 @@ app.get("/api/local", async (req, res) => {
     topFiles,
     modelTrend,
     rateHeatmap,
+    focus,
+    records,
   });
 });
 
@@ -256,6 +260,68 @@ function buildPatterns(since) {
     punch[idx[r.dow * 24 + r.hour]].lines = r.lines;
   }
   return { hour, weekday, punch };
+}
+
+// Fokus-/Pausen-Analyse aus den Event-Lücken.
+// Fokus-Block = aufeinanderfolgende Events mit Lücke <= 25 min.
+// Pause = Lücke 25–180 min (alles darüber = Tagesgrenze, zählt nicht).
+function buildFocus(rows) {
+  const FOCUS = 25;
+  const MAXPAUSE = 180;
+  const blocks = [];
+  let blockStart = null;
+  let lastTs = null;
+  let pauseCount = 0;
+  let pauseSum = 0;
+  const closeBlock = () => {
+    if (blockStart != null && lastTs != null) {
+      blocks.push((Date.parse(lastTs) - Date.parse(blockStart)) / 60000);
+    }
+  };
+  for (const r of rows) {
+    const newBlock = r.gap == null || r.gap > FOCUS;
+    if (newBlock) {
+      closeBlock();
+      blockStart = r.ts;
+      if (r.gap != null && r.gap > FOCUS && r.gap <= MAXPAUSE) {
+        pauseCount++;
+        pauseSum += r.gap;
+      }
+    }
+    lastTs = r.ts;
+  }
+  closeBlock();
+  const realBlocks = blocks.filter((b) => b > 0);
+  const longest = blocks.length ? Math.max(...blocks) : 0;
+  const avgBlock = realBlocks.length ? realBlocks.reduce((s, b) => s + b, 0) / realBlocks.length : 0;
+  return {
+    focusBlocks: blocks.length,
+    avgFocusMin: r2(avgBlock),
+    longestFocusMin: r2(longest),
+    pauses: pauseCount,
+    avgPauseMin: pauseCount ? r2(pauseSum / pauseCount) : 0,
+  };
+}
+
+// Rekorde (immer über die gesamte Historie).
+function buildRecords(byModelRange, byLangRange) {
+  const busiest = store.busiestDay() || {};
+  const linesDay = store.maxLinesDay() || {};
+  const costDay = store.maxCostDay() || {};
+  const costEv = store.maxCostEvent() || {};
+  const ses = store.topSession() || {};
+  const sesDur = ses.start_ts ? Math.round((Date.parse(ses.last_ts) - Date.parse(ses.start_ts)) / 60000) : 0;
+  const allModels = store.byModel(null);
+  const allLangs = store.byLanguage(null, null);
+  return {
+    busiestDay: { date: busiest.day || null, requests: busiest.requests || 0 },
+    maxLinesDay: { date: linesDay.day || null, lines: linesDay.lines || 0 },
+    maxCostDay: { date: costDay.day || null, cost: r2(costDay.cost) },
+    maxCostEvent: { model: costEv.model || "—", date: (costEv.ts || "").slice(0, 10), cost: r2(costEv.cost) },
+    topSession: { requests: ses.requests || 0, durationMin: sesDur, tokens: ses.tokens || 0 },
+    topModel: allModels[0] ? { model: allModels[0].model, requests: allModels[0].requests } : null,
+    topLang: allLangs[0] ? { lang: allLangs[0].lang, lines: allLangs[0].lines } : null,
+  };
 }
 
 // 7×24-Gitter aus dow/hour-Zeilen (für Heatmaps).

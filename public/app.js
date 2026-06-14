@@ -82,6 +82,8 @@ function render(d) {
   drawWeekChart();
   renderPunch();
   renderWork(d.work);
+  renderFocus(d.focus);
+  renderRecords(d.records);
   renderSplit(s);
   setCalendarData(d.heatmap, d.workHeatmap);
   allProjects = d.codeProjects || [];
@@ -246,6 +248,52 @@ function renderWork(w) {
     tip: (v) => t("h_active", { h: v.toFixed(1) }),
     yfmt: (v) => v + "h",
   });
+}
+
+function fmtMin(min) {
+  min = Math.round(min || 0);
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return h ? `${h} h ${m} min` : `${m} min`;
+}
+function fmtDur(min) {
+  const d = Math.floor((min || 0) / 1440);
+  if (d >= 2) return `${d} d`;
+  return `${Math.floor((min || 0) / 60)} h`;
+}
+function fmtMonthDay(iso) {
+  if (!iso) return "—";
+  return new Date(iso + "T00:00:00Z").toLocaleDateString(loc(), { day: "2-digit", month: "short" });
+}
+
+function renderFocus(f) {
+  f = f || {};
+  const stats = [
+    { l: t("f_blocks"), v: fmtNum(f.focusBlocks) },
+    { l: t("f_avg"), v: Math.round(f.avgFocusMin) + " min" },
+    { l: t("f_longest"), v: fmtMin(f.longestFocusMin) },
+    { l: t("f_pauses"), v: fmtNum(f.pauses) },
+    { l: t("f_avgpause"), v: Math.round(f.avgPauseMin) + " min" },
+  ];
+  $("#focusStats").innerHTML = stats
+    .map((s) => `<div class="stat2"><div class="s2-label">${s.l}</div><div class="s2-value">${s.v}</div></div>`)
+    .join("");
+}
+
+function renderRecords(r) {
+  r = r || {};
+  const recs = [
+    { l: t("r_busiest"), v: fmtNum(r.busiestDay?.requests) + " req", sub: fmtMonthDay(r.busiestDay?.date) },
+    { l: t("r_lines"), v: t("r_lines_v", { n: fmtNum(r.maxLinesDay?.lines) }), sub: fmtMonthDay(r.maxLinesDay?.date) },
+    { l: t("r_costday"), v: fmtUsd(r.maxCostDay?.cost), sub: fmtMonthDay(r.maxCostDay?.date) },
+    { l: t("r_costreq"), v: fmtUsd(r.maxCostEvent?.cost), sub: `${modelLabel(r.maxCostEvent?.model || "—")} · ${fmtMonthDay(r.maxCostEvent?.date)}` },
+    { l: t("r_session"), v: t("r_session_v", { n: fmtNum(r.topSession?.requests) }), sub: fmtDur(r.topSession?.durationMin) },
+    { l: t("r_model"), v: r.topModel ? modelLabel(r.topModel.model) : "—", sub: r.topModel ? fmtNum(r.topModel.requests) + " req" : "" },
+    { l: t("r_lang"), v: r.topLang ? escapeHtml(r.topLang.lang) : "—", sub: r.topLang ? `${fmtNum(r.topLang.lines)} ${t("unit_lines_short")}` : "" },
+  ];
+  $("#recordsGrid").innerHTML = recs
+    .map((x) => `<div class="record"><div class="rc-label">${x.l}</div><div class="rc-value">${x.v}</div><div class="rc-sub">${x.sub || ""}</div></div>`)
+    .join("");
 }
 
 // Umschaltbare Metriken für Muster-Charts & Punchcard

@@ -112,17 +112,17 @@ The Claude Code path defaults to `~/.claude`. Pricing lives in `src/db.js` (`PIN
 
 ---
 
-## Contributing
+## Feedback
 
-Issues and PRs welcome — especially:
-
-- **More languages** (translations live in `public/i18n.js`).
-- More analytics ideas (pause/focus analysis, productivity by time of day, records panel, …).
-- Optional Anthropic/OpenAI Admin-API sources (scaffolding exists in `src/providers.js`).
+This is a personal, all-rights-reserved project. Bug reports and ideas via GitHub
+issues are welcome, but the code may not be reused without permission (see
+[LICENSE](LICENSE)).
 
 ## License
 
-[MIT](LICENSE)
+**All rights reserved.** Copyright © 2026 Tim Bekurdts. This source is publicly
+viewable but **not** open source — see [LICENSE](LICENSE). No permission is granted to
+use, copy, modify, or distribute it without prior written consent.
 
 ---
 

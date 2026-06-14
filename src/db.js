@@ -565,6 +565,36 @@ export function workdays(since, thresholdMin = 25) {
   return getDb().prepare(sql).all(...params);
 }
 
+// Lücken zwischen aufeinanderfolgenden Events (für Fokus-/Pausen-Analyse),
+// partitioniert nach lokalem Arbeitstag (gap = null beim ersten Event des Tages).
+export function workGaps(since) {
+  const wd = "date(ts,'localtime','-5 hours')";
+  const sql = `
+    SELECT ts, (julianday(ts) - julianday(LAG(ts) OVER (PARTITION BY ${wd} ORDER BY ts))) * 1440.0 AS gap
+    FROM events${since ? ` WHERE ${wd} >= ?` : ""} ORDER BY ts`;
+  return getDb().prepare(sql).all(...(since ? [since] : []));
+}
+
+// --- Rekorde --------------------------------------------------------------
+export function maxLinesDay() {
+  return getDb().prepare("SELECT day, COALESCE(SUM(lines),0) AS lines FROM code GROUP BY day ORDER BY lines DESC LIMIT 1").get();
+}
+export function maxCostEvent() {
+  return getDb().prepare(`SELECT model, ts, ${FULL} AS cost FROM events ORDER BY cost DESC LIMIT 1`).get();
+}
+export function maxCostDay() {
+  return getDb().prepare(`SELECT day, COALESCE(SUM(${FULL}),0) AS cost FROM events GROUP BY day ORDER BY cost DESC LIMIT 1`).get();
+}
+export function topSession() {
+  return getDb()
+    .prepare(
+      `SELECT session, COUNT(*) AS requests, MIN(ts) AS start_ts, MAX(ts) AS last_ts,
+              COALESCE(SUM(input+output),0) AS tokens
+       FROM events WHERE session != '' GROUP BY session ORDER BY requests DESC LIMIT 1`
+    )
+    .get();
+}
+
 // Tägliche Aktivität über ALLE Zeit (für die Kalender-Heatmap).
 export function dailyAll() {
   return getDb()

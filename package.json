@@ -22,7 +22,9 @@
     "self-hosted",
     "local"
   ],
-  "license": "MIT",
+  "license": "UNLICENSED",
+  "private": true,
+  "author": "Tim Bekurdts",
   "dependencies": {
     "express": "^4.19.2"
   }
