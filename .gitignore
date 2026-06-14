@@ -1,0 +1,11 @@
+node_modules/
+data/
+*.log
+*.db
+*.db-shm
+*.db-wal
+.env
+.DS_Store
+.vscode/
+
+.claude/

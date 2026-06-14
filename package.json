@@ -1,0 +1,29 @@
+{
+  "name": "ai-usage-cockpit",
+  "version": "1.0.0",
+  "description": "A local, zero-config dashboard for your Claude Code usage. Reads the JSONL logs Claude Code writes to ~/.claude and visualizes requests, tokens, estimated API-equivalent cost, models, projects, programming languages, working hours, a calendar heatmap and a live console — all on your machine, no API key, works on Pro/Max subscriptions.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "anthropic",
+    "usage",
+    "dashboard",
+    "analytics",
+    "token-usage",
+    "cost-tracking",
+    "self-hosted",
+    "local"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

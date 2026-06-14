@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Manager — Verbrauchsauszug</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="sheet">
+      <!-- Kopf -->
+      <header class="masthead">
+        <div class="mast-left">
+          <div class="logo">AI&nbsp;MANAGER</div>
+          <div class="tagline">Verbrauchsauszug · Claude Code (lokal)</div>
+        </div>
+        <div class="mast-right">
+          <div class="period" id="period">—</div>
+          <button class="sync" id="refreshBtn"><span class="spin">↻</span> Sync</button>
+        </div>
+      </header>
+
+      <div id="content" class="hidden">
+        <!-- Live-Leiste -->
+        <section class="live">
+          <div class="live-bar">
+            <div class="live-tag"><span class="live-dot"></span> LIVE</div>
+            <div class="live-ago" id="liveAgo">—</div>
+            <div class="live-rate" id="liveRate"></div>
+          </div>
+
+          <div class="live-grid">
+            <div class="live-left">
+              <!-- Heute-Hero mit hochlaufendem Balken -->
+              <div class="hero-today">
+                <div class="hero-row">
+                  <span class="hero-label">HEUTE</span>
+                  <span class="hero-main"><b id="heroReq">0</b> req</span>
+                  <span class="hero-side"><span id="heroReal">$0</span> · <span id="heroTok">0</span> tok</span>
+                </div>
+                <div class="hero-bar"><div class="hero-fill" id="heroFill"></div></div>
+                <div class="hero-scale" id="heroScale"></div>
+              </div>
+
+              <!-- Live-Kacheln -->
+              <div class="live-tiles" id="liveTiles"></div>
+            </div>
+
+            <!-- Console -->
+            <div class="console">
+              <div class="console-head">
+                <span class="cdot"></span><span class="cdot"></span><span class="cdot"></span>
+                <span class="console-title">live · ~/.claude/projects</span>
+              </div>
+              <div class="console-body" id="console"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Zeitraum-Umschalter -->
+        <div class="range-bar">
+          <span class="range-label">Zeitraum</span>
+          <div class="range-toggle" id="rangeToggle">
+            <button data-days="7">7 T</button>
+            <button data-days="30">30 T</button>
+            <button data-days="90">90 T</button>
+            <button data-days="3650" class="active">Gesamt</button>
+          </div>
+          <span class="range-span" id="rangeSpan"></span>
+        </div>
+
+        <!-- Kennzahlen-Band -->
+        <section class="figures" id="figures"></section>
+
+        <!-- Sekundäre Kennzahlen -->
+        <section class="stats2" id="stats2"></section>
+
+        <!-- Aktivitätsmuster -->
+        <section class="patterns">
+          <div class="pattern">
+            <div class="sec-label pat-head">
+              Nach Tageszeit
+              <div class="range-toggle small metric-toggle" data-chart="hour">
+                <button data-m="requests" class="active">Req</button>
+                <button data-m="lines">Zeilen</button>
+                <button data-m="cost">$</button>
+              </div>
+            </div>
+            <div class="pattern-chart"><canvas id="hourChart"></canvas></div>
+          </div>
+          <div class="pattern alt">
+            <div class="sec-label pat-head">
+              Nach Wochentag
+              <div class="range-toggle small metric-toggle" data-chart="week">
+                <button data-m="requests" class="active">Req</button>
+                <button data-m="lines">Zeilen</button>
+                <button data-m="cost">$</button>
+              </div>
+            </div>
+            <div class="pattern-chart"><canvas id="weekChart"></canvas></div>
+          </div>
+        </section>
+
+        <!-- Wochentag × Tageszeit (Punchcard) -->
+        <section class="punch-sec">
+          <div class="sec-label pat-head">
+            Wochentag × Tageszeit
+            <div class="range-toggle small metric-toggle" data-chart="punch">
+              <button data-m="requests" class="active">Requests</button>
+              <button data-m="lines">Zeilen</button>
+              <button data-m="cost">Kosten</button>
+            </div>
+            <span id="punchInfo" class="muted"></span>
+          </div>
+          <div class="punch-wrap">
+            <div class="punch">
+              <div class="punch-corner"></div>
+              <div class="punch-hours" id="punchHours"></div>
+              <div class="punch-wd" id="punchWd"></div>
+              <div class="punch-cells" id="punch"></div>
+            </div>
+          </div>
+          <div id="punchTip" class="heat-tip hidden"></div>
+        </section>
+
+        <!-- Arbeitszeiten -->
+        <section class="work-sec">
+          <div class="sec-label">Geschätzte Arbeitszeit <span id="workTotal" class="muted"></span></div>
+          <div class="stats2" id="workStats"></div>
+          <div class="work-chart-wrap"><canvas id="workChart"></canvas></div>
+        </section>
+
+        <!-- Kalender-Heatmap -->
+        <section class="heatmap-sec">
+          <div class="sec-label heat-head">
+            Kalender · letztes Jahr
+            <div class="range-toggle small" id="heatToggle">
+              <button data-m="requests" class="active">Requests</button>
+              <button data-m="hours">Stunden</button>
+              <button data-m="cost">Kosten</button>
+            </div>
+            <span id="heatTotal" class="muted"></span>
+          </div>
+          <div class="heatmap-wrap">
+            <div class="heat">
+              <div class="heat-corner"></div>
+              <div class="heat-months" id="heatMonths"></div>
+              <div class="heat-wd" id="heatWd"></div>
+              <div class="heat-cells" id="heatmap"></div>
+            </div>
+            <div class="heat-legend">
+              weniger
+              <span class="heat-cell l0"></span><span class="heat-cell l1"></span><span class="heat-cell l2"></span><span class="heat-cell l3"></span><span class="heat-cell l4"></span>
+              mehr
+            </div>
+          </div>
+          <div id="heatTip" class="heat-tip hidden"></div>
+        </section>
+
+        <!-- Programmiersprachen -->
+        <section class="langs-sec">
+          <div class="sec-label langs-head">
+            Programmiersprachen · geschriebene Zeilen
+            <span class="proj-select" id="projSelect">
+              <button type="button" class="ps-btn" id="psBtn">Alle Projekte <span class="ps-caret">▾</span></button>
+              <div class="ps-menu hidden" id="psMenu">
+                <input class="ps-search" id="psSearch" placeholder="Projekt suchen…" autocomplete="off" />
+                <div class="ps-options" id="psOptions"></div>
+              </div>
+            </span>
+            <span id="langTotal" class="muted"></span>
+          </div>
+          <div class="lang-wrap">
+            <div class="lang-stack" id="langStack"></div>
+            <div class="lang-list" id="langList"></div>
+          </div>
+        </section>
+
+        <!-- Aufschlüsselung Cache vs. real -->
+        <section class="breakdown">
+          <div class="sec-label">Aufschlüsselung</div>
+          <div class="split-bar" id="splitBar"></div>
+          <div class="split-legend" id="splitLegend"></div>
+        </section>
+
+        <!-- Modell-Tabelle -->
+        <section class="ledger">
+          <div class="sec-label">Modelle · diesen Monat</div>
+          <table class="ledger-table" id="modelTable">
+            <thead>
+              <tr>
+                <th>Modell</th>
+                <th class="r">Requests</th>
+                <th class="r">Tokens</th>
+                <th class="r">Real $</th>
+                <th class="r">API-Wert $</th>
+              </tr>
+            </thead>
+            <tbody id="modelBody"></tbody>
+            <tfoot id="modelFoot"></tfoot>
+          </table>
+        </section>
+
+        <!-- Projekt-Tabelle -->
+        <section class="ledger">
+          <div class="sec-label">Projekte · nach Ordner</div>
+          <table class="ledger-table" id="projectTable">
+            <thead>
+              <tr>
+                <th>Projekt</th>
+                <th class="r">Requests</th>
+                <th class="r">Tokens</th>
+                <th class="r">Real $</th>
+                <th class="r">Anteil</th>
+              </tr>
+            </thead>
+            <tbody id="projectBody"></tbody>
+          </table>
+        </section>
+
+        <!-- Tagesverlauf -->
+        <section class="daily">
+          <div class="sec-label">Täglicher Verbrauch (real) · letzte 30 Tage</div>
+          <div class="chart-wrap"><canvas id="chart"></canvas></div>
+        </section>
+      </div>
+
+      <!-- Kein Log gefunden -->
+      <div id="empty" class="empty hidden">
+        <div class="empty-rule"></div>
+        <h2>Keine Claude-Code-Logs gefunden</h2>
+        <p>
+          Erwartet unter <code id="emptyPath"></code>. Sobald du Claude Code nutzt,
+          erscheinen hier deine Zahlen — ganz automatisch, ohne Konfiguration.
+        </p>
+      </div>
+
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
