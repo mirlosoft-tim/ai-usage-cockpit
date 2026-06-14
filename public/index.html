@@ -18,11 +18,15 @@
       <header class="masthead">
         <div class="mast-left">
           <div class="logo">AI&nbsp;MANAGER</div>
-          <div class="tagline">Verbrauchsauszug · Claude Code (lokal)</div>
+          <div class="tagline" data-i18n="tagline">Verbrauchsauszug · Claude Code (lokal)</div>
         </div>
         <div class="mast-right">
           <div class="period" id="period">—</div>
-          <button class="sync" id="refreshBtn"><span class="spin">↻</span> Sync</button>
+          <div class="lang-switch" id="langSwitch">
+            <button data-l="de">DE</button>
+            <button data-l="en">EN</button>
+          </div>
+          <button class="sync" id="refreshBtn"><span class="spin">↻</span> <span data-i18n="sync">Sync</span></button>
         </div>
       </header>
 
@@ -30,7 +34,7 @@
         <!-- Live-Leiste -->
         <section class="live">
           <div class="live-bar">
-            <div class="live-tag"><span class="live-dot"></span> LIVE</div>
+            <div class="live-tag"><span class="live-dot"></span> <span data-i18n="live">LIVE</span></div>
             <div class="live-ago" id="liveAgo">—</div>
             <div class="live-rate" id="liveRate"></div>
           </div>
@@ -40,9 +44,9 @@
               <!-- Heute-Hero mit hochlaufendem Balken -->
               <div class="hero-today">
                 <div class="hero-row">
-                  <span class="hero-label">HEUTE</span>
-                  <span class="hero-main"><b id="heroReq">0</b> req</span>
-                  <span class="hero-side"><span id="heroReal">$0</span> · <span id="heroTok">0</span> tok</span>
+                  <span class="hero-label" data-i18n="today">HEUTE</span>
+                  <span class="hero-main"><b id="heroReq">0</b> <span data-i18n="req">req</span></span>
+                  <span class="hero-side"><span id="heroReal">$0</span> · <span id="heroTok">0</span> <span data-i18n="tok">tok</span></span>
                 </div>
                 <div class="hero-bar"><div class="hero-fill" id="heroFill"></div></div>
                 <div class="hero-scale" id="heroScale"></div>
@@ -56,7 +60,7 @@
             <div class="console">
               <div class="console-head">
                 <span class="cdot"></span><span class="cdot"></span><span class="cdot"></span>
-                <span class="console-title">live · ~/.claude/projects</span>
+                <span class="console-title" data-i18n="console_title">live · ~/.claude/projects</span>
               </div>
               <div class="console-body" id="console"></div>
             </div>
@@ -65,12 +69,12 @@
 
         <!-- Zeitraum-Umschalter -->
         <div class="range-bar">
-          <span class="range-label">Zeitraum</span>
+          <span class="range-label" data-i18n="range_label">Zeitraum</span>
           <div class="range-toggle" id="rangeToggle">
-            <button data-days="7">7 T</button>
-            <button data-days="30">30 T</button>
-            <button data-days="90">90 T</button>
-            <button data-days="3650" class="active">Gesamt</button>
+            <button data-days="7" data-i18n="range_7">7 T</button>
+            <button data-days="30" data-i18n="range_30">30 T</button>
+            <button data-days="90" data-i18n="range_90">90 T</button>
+            <button data-days="3650" class="active" data-i18n="range_all">Gesamt</button>
           </div>
           <span class="range-span" id="rangeSpan"></span>
         </div>
@@ -85,22 +89,22 @@
         <section class="patterns">
           <div class="pattern">
             <div class="sec-label pat-head">
-              Nach Tageszeit
+              <span data-i18n="pat_hour">Nach Tageszeit</span>
               <div class="range-toggle small metric-toggle" data-chart="hour">
-                <button data-m="requests" class="active">Req</button>
-                <button data-m="lines">Zeilen</button>
-                <button data-m="cost">$</button>
+                <button data-m="requests" class="active" data-i18n="m_req">Req</button>
+                <button data-m="lines" data-i18n="m_lines">Zeilen</button>
+                <button data-m="cost" data-i18n="m_cost">$</button>
               </div>
             </div>
             <div class="pattern-chart"><canvas id="hourChart"></canvas></div>
           </div>
           <div class="pattern alt">
             <div class="sec-label pat-head">
-              Nach Wochentag
+              <span data-i18n="pat_week">Nach Wochentag</span>
               <div class="range-toggle small metric-toggle" data-chart="week">
-                <button data-m="requests" class="active">Req</button>
-                <button data-m="lines">Zeilen</button>
-                <button data-m="cost">$</button>
+                <button data-m="requests" class="active" data-i18n="m_req">Req</button>
+                <button data-m="lines" data-i18n="m_lines">Zeilen</button>
+                <button data-m="cost" data-i18n="m_cost">$</button>
               </div>
             </div>
             <div class="pattern-chart"><canvas id="weekChart"></canvas></div>
@@ -110,11 +114,11 @@
         <!-- Wochentag × Tageszeit (Punchcard) -->
         <section class="punch-sec">
           <div class="sec-label pat-head">
-            Wochentag × Tageszeit
+            <span data-i18n="pat_punch">Wochentag × Tageszeit</span>
             <div class="range-toggle small metric-toggle" data-chart="punch">
-              <button data-m="requests" class="active">Requests</button>
-              <button data-m="lines">Zeilen</button>
-              <button data-m="cost">Kosten</button>
+              <button data-m="requests" class="active" data-i18n="m_req_full">Requests</button>
+              <button data-m="lines" data-i18n="m_lines_full">Zeilen</button>
+              <button data-m="cost" data-i18n="m_cost_full">Kosten</button>
             </div>
             <span id="punchInfo" class="muted"></span>
           </div>
@@ -131,7 +135,7 @@
 
         <!-- Arbeitszeiten -->
         <section class="work-sec">
-          <div class="sec-label">Geschätzte Arbeitszeit <span id="workTotal" class="muted"></span></div>
+          <div class="sec-label"><span data-i18n="work">Geschätzte Arbeitszeit</span> <span id="workTotal" class="muted"></span></div>
           <div class="stats2" id="workStats"></div>
           <div class="work-chart-wrap"><canvas id="workChart"></canvas></div>
         </section>
@@ -139,11 +143,11 @@
         <!-- Kalender-Heatmap -->
         <section class="heatmap-sec">
           <div class="sec-label heat-head">
-            Kalender · letztes Jahr
+            <span data-i18n="cal">Kalender · letztes Jahr</span>
             <div class="range-toggle small" id="heatToggle">
-              <button data-m="requests" class="active">Requests</button>
-              <button data-m="hours">Stunden</button>
-              <button data-m="cost">Kosten</button>
+              <button data-m="requests" class="active" data-i18n="cal_req">Requests</button>
+              <button data-m="hours" data-i18n="cal_hours">Stunden</button>
+              <button data-m="cost" data-i18n="cal_cost">Kosten</button>
             </div>
             <span id="heatTotal" class="muted"></span>
           </div>
@@ -155,9 +159,9 @@
               <div class="heat-cells" id="heatmap"></div>
             </div>
             <div class="heat-legend">
-              weniger
+              <span data-i18n="less">weniger</span>
               <span class="heat-cell l0"></span><span class="heat-cell l1"></span><span class="heat-cell l2"></span><span class="heat-cell l3"></span><span class="heat-cell l4"></span>
-              mehr
+              <span data-i18n="more">mehr</span>
             </div>
           </div>
           <div id="heatTip" class="heat-tip hidden"></div>
@@ -166,11 +170,11 @@
         <!-- Programmiersprachen -->
         <section class="langs-sec">
           <div class="sec-label langs-head">
-            Programmiersprachen · geschriebene Zeilen
+            <span data-i18n="langs">Programmiersprachen · geschriebene Zeilen</span>
             <span class="proj-select" id="projSelect">
-              <button type="button" class="ps-btn" id="psBtn">Alle Projekte <span class="ps-caret">▾</span></button>
+              <button type="button" class="ps-btn" id="psBtn"><span id="psBtnLabel" data-i18n="all_projects">Alle Projekte</span> <span class="ps-caret">▾</span></button>
               <div class="ps-menu hidden" id="psMenu">
-                <input class="ps-search" id="psSearch" placeholder="Projekt suchen…" autocomplete="off" />
+                <input class="ps-search" id="psSearch" data-i18n-ph="search_project" placeholder="Projekt suchen…" autocomplete="off" />
                 <div class="ps-options" id="psOptions"></div>
               </div>
             </span>
@@ -184,22 +188,22 @@
 
         <!-- Aufschlüsselung Cache vs. real -->
         <section class="breakdown">
-          <div class="sec-label">Aufschlüsselung</div>
+          <div class="sec-label" data-i18n="breakdown">Aufschlüsselung</div>
           <div class="split-bar" id="splitBar"></div>
           <div class="split-legend" id="splitLegend"></div>
         </section>
 
         <!-- Modell-Tabelle -->
         <section class="ledger">
-          <div class="sec-label">Modelle · diesen Monat</div>
+          <div class="sec-label" data-i18n="models">Modelle · diesen Monat</div>
           <table class="ledger-table" id="modelTable">
             <thead>
               <tr>
-                <th>Modell</th>
-                <th class="r">Requests</th>
-                <th class="r">Tokens</th>
-                <th class="r">Real $</th>
-                <th class="r">API-Wert $</th>
+                <th data-i18n="th_model">Modell</th>
+                <th class="r" data-i18n="th_req">Requests</th>
+                <th class="r" data-i18n="th_tokens">Tokens</th>
+                <th class="r" data-i18n="th_realc">Real $</th>
+                <th class="r" data-i18n="th_apic">API-Wert $</th>
               </tr>
             </thead>
             <tbody id="modelBody"></tbody>
@@ -207,17 +211,54 @@
           </table>
         </section>
 
+        <!-- Modell-Trend -->
+        <section class="trend-sec">
+          <div class="sec-label"><span data-i18n="trend">Modell-Mix im Zeitverlauf</span> <span id="trendInfo" class="muted"></span></div>
+          <div class="trend-chart-wrap"><canvas id="trendChart"></canvas></div>
+          <div class="trend-legend" id="trendLegend"></div>
+        </section>
+
+        <!-- Top-Dateien -->
+        <section class="ledger">
+          <div class="sec-label" data-i18n="topfiles">Top-Dateien · am häufigsten bearbeitet</div>
+          <table class="ledger-table" id="filesTable">
+            <thead>
+              <tr>
+                <th data-i18n="th_file">Datei</th>
+                <th data-i18n="th_project">Projekt</th>
+                <th class="r" data-i18n="th_edits">Edits</th>
+                <th class="r" data-i18n="th_lines">Zeilen</th>
+              </tr>
+            </thead>
+            <tbody id="filesBody"></tbody>
+          </table>
+        </section>
+
+        <!-- 429 Rate-Limit-Heatmap -->
+        <section class="punch-sec">
+          <div class="sec-label"><span data-i18n="rate_limits">Rate-Limit-Treffer (429) · Wochentag × Tageszeit</span> <span id="rateInfo" class="muted"></span></div>
+          <div class="punch-wrap">
+            <div class="punch">
+              <div class="punch-corner"></div>
+              <div class="punch-hours" id="rateHours"></div>
+              <div class="punch-wd" id="rateWd"></div>
+              <div class="punch-cells rate" id="rateGrid"></div>
+            </div>
+          </div>
+          <div id="rateTip" class="heat-tip hidden"></div>
+        </section>
+
         <!-- Projekt-Tabelle -->
         <section class="ledger">
-          <div class="sec-label">Projekte · nach Ordner</div>
+          <div class="sec-label" data-i18n="projects">Projekte · nach Ordner</div>
           <table class="ledger-table" id="projectTable">
             <thead>
               <tr>
-                <th>Projekt</th>
-                <th class="r">Requests</th>
-                <th class="r">Tokens</th>
-                <th class="r">Real $</th>
-                <th class="r">Anteil</th>
+                <th data-i18n="th_project">Projekt</th>
+                <th class="r" data-i18n="th_req">Requests</th>
+                <th class="r" data-i18n="th_tokens">Tokens</th>
+                <th class="r" data-i18n="th_realc">Real $</th>
+                <th class="r" data-i18n="th_share">Anteil</th>
               </tr>
             </thead>
             <tbody id="projectBody"></tbody>
@@ -226,7 +267,7 @@
 
         <!-- Tagesverlauf -->
         <section class="daily">
-          <div class="sec-label">Täglicher Verbrauch (real) · letzte 30 Tage</div>
+          <div class="sec-label" data-i18n="cap_daily">Täglicher Verbrauch (real) · letzte 30 Tage</div>
           <div class="chart-wrap"><canvas id="chart"></canvas></div>
         </section>
       </div>
@@ -234,8 +275,8 @@
       <!-- Kein Log gefunden -->
       <div id="empty" class="empty hidden">
         <div class="empty-rule"></div>
-        <h2>Keine Claude-Code-Logs gefunden</h2>
-        <p>
+        <h2 data-i18n="empty_h">Keine Claude-Code-Logs gefunden</h2>
+        <p id="emptyP">
           Erwartet unter <code id="emptyPath"></code>. Sobald du Claude Code nutzt,
           erscheinen hier deine Zahlen — ganz automatisch, ohne Konfiguration.
         </p>
@@ -244,6 +285,7 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="i18n.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

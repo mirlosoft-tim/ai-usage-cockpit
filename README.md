@@ -8,7 +8,7 @@ programming languages, working hours, a calendar heatmap and a live console.
 Everything runs **on your machine**. No API key required. Works on **Pro/Max subscriptions**
 (where there is no usage API) because Claude Code logs every request locally anyway.
 
-> ⚠️ The UI is currently in **German**. Translations welcome — see [Contributing](#contributing).
+> 🌐 UI available in **English and German** — toggle in the top-right (DE/EN).
 
 ---
 
@@ -38,8 +38,11 @@ and visualizes them.
 - **Projects & models** — breakdowns with shares.
 - **Activity patterns** — by hour of day, by weekday, and a **weekday × hour punchcard**, each
   switchable between requests / lines / cost.
+- **Model-mix trend** over time, **top edited files**, and a **rate-limit (429) heatmap** by
+  weekday × hour.
 - **Estimated working time** — active minutes per day (gaps over 25 min count as breaks),
-  average start/end (robust to night-owl schedules), longest day.
+  average start/end (robust to night-owl schedules), longest day, lines per hour.
+- **English / German UI** with a one-click toggle.
 - **Persistent** — all events are ingested into a local SQLite database and kept forever, even
   if Claude Code prunes its own logs.
 
@@ -113,8 +116,8 @@ The Claude Code path defaults to `~/.claude`. Pricing lives in `src/db.js` (`PIN
 
 Issues and PRs welcome — especially:
 
-- **i18n / English UI** (strings currently live inline in `public/`).
-- More analytics (top files, model-mix trend, rate-limit heatmap, lines-per-hour, …).
+- **More languages** (translations live in `public/i18n.js`).
+- More analytics ideas (pause/focus analysis, productivity by time of day, records panel, …).
 - Optional Anthropic/OpenAI Admin-API sources (scaffolding exists in `src/providers.js`).
 
 ## License

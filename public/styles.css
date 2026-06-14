@@ -96,6 +96,26 @@ body {
 .sync:hover {
   background: var(--red);
 }
+.lang-switch {
+  display: inline-flex;
+  border: 1.5px solid var(--ink);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.lang-switch button {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  background: var(--paper);
+  color: var(--ink-2);
+  border: none;
+  padding: 6px 9px;
+  cursor: pointer;
+}
+.lang-switch button.active {
+  background: var(--ink);
+  color: var(--paper);
+}
 .spin {
   display: inline-block;
 }
@@ -465,6 +485,9 @@ body {
   color: var(--ink-dim);
   margin-top: 3px;
 }
+#workStats {
+  grid-template-columns: repeat(6, 1fr);
+}
 
 /* Arbeitszeiten */
 .work-sec {
@@ -794,6 +817,41 @@ body {
   text-align: right;
   font-size: 10.5px;
 }
+
+/* Modell-Trend */
+.trend-sec {
+  border-bottom: 1.5px solid var(--ink);
+}
+.trend-chart-wrap {
+  height: 150px;
+  margin: 14px 30px 8px;
+}
+.trend-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding: 0 30px 16px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-dim);
+}
+.trend-legend .tl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.trend-legend .tl-sw {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+/* 429-Heatmap nutzt Punchcard-Layout, eigene Farbskala (rot) */
+.punch-cells.rate .punch-cell.l0 { background: #ece7da; }
+.punch-cells.rate .punch-cell.l1 { background: #e8b59a; }
+.punch-cells.rate .punch-cell.l2 { background: #db8a6a; }
+.punch-cells.rate .punch-cell.l3 { background: #c25a40; }
+.punch-cells.rate .punch-cell.l4 { background: #9c2f1e; }
 
 /* Heatmap */
 .heatmap-sec {

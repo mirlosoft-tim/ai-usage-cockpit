@@ -5,26 +5,28 @@ const $ = (s) => document.querySelector(s);
 let currentDays = 3650; // Start: Gesamt
 let currentProject = "__all__"; // Sprachen-Filter
 let allProjects = []; // {name, lines} für das Dropdown
+let lastData = null; // letzte Dashboard-Daten (für Sprachwechsel-Rerender)
 
+const loc = () => (LANG === "en" ? "en-US" : "de-DE");
 const fmtUsd = (n) =>
-  n == null ? "—" : "$" + Number(n).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmtNum = (n) => Number(n || 0).toLocaleString("de-DE");
+  n == null ? "—" : "$" + Number(n).toLocaleString(loc(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtNum = (n) => Number(n || 0).toLocaleString(loc());
 const fmtTokens = (n) => {
   n = Number(n || 0);
-  if (n >= 1e9) return (n / 1e9).toFixed(2) + " Mrd";
-  if (n >= 1e6) return (n / 1e6).toFixed(1) + " Mio";
-  if (n >= 1e3) return (n / 1e3).toFixed(0) + "k";
+  const u = LANG === "en" ? ["B", "M", "k"] : ["Mrd", "Mio", "k"];
+  if (n >= 1e9) return (n / 1e9).toFixed(2) + " " + u[0];
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + " " + u[1];
+  if (n >= 1e3) return (n / 1e3).toFixed(0) + u[2];
   return String(n);
 };
 
 function rangeName(days) {
-  if (days >= 365) return "Gesamter Verlauf";
-  return `Letzte ${days} Tage`;
+  return days >= 365 ? t("range_all_name") : t("range_last", { n: days });
 }
 function fmtDate(iso) {
   if (!iso) return "—";
   const d = new Date(iso + "T00:00:00Z");
-  return d.toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "2-digit" });
+  return d.toLocaleDateString(loc(), { day: "2-digit", month: "short", year: "2-digit" });
 }
 
 function modelLabel(m) {
@@ -51,13 +53,15 @@ async function load(force = false) {
 }
 
 function render(d) {
+  lastData = d;
   $("#period").textContent = rangeName(currentDays);
 
   if (!d.found) {
     $("#content").classList.add("hidden");
     $("#empty").classList.remove("hidden");
-    $("#emptyPath").textContent = d.path || "~/.claude";
-    $("#colophon").textContent = "";
+    const path = d.path || "~/.claude";
+    $("#emptyPath").textContent = path;
+    $("#emptyP").innerHTML = t("empty_p", { path: `<code>${escapeHtml(path)}</code>` });
     return;
   }
 
@@ -65,7 +69,11 @@ function render(d) {
   $("#content").classList.remove("hidden");
 
   const s = d.summary;
-  $("#rangeSpan").textContent = `${s.daysCovered} Tage mit Daten · ${fmtDate(s.firstDate)} – ${fmtDate(s.lastDate)}`;
+  $("#rangeSpan").textContent = t("range_span", {
+    n: s.daysCovered,
+    from: fmtDate(s.firstDate),
+    to: fmtDate(s.lastDate),
+  });
 
   renderFigures(s);
   renderStats2(s);
@@ -80,7 +88,10 @@ function render(d) {
   populateProjects();
   if (currentProject === "__all__") renderLanguages(d.byLanguage);
   else loadLanguages();
+  drawModelTrend(d.modelTrend);
   renderModels(d.byModel);
+  renderTopFiles(d.topFiles);
+  renderRateHeatmap(d.rateHeatmap);
   renderProjects(d.byProject, s.requests);
   drawChart(d.daily);
 
@@ -88,21 +99,10 @@ function render(d) {
 
 function renderFigures(s) {
   const figs = [
-    { label: "Requests", value: fmtNum(s.requests), sub: `⌀ ${fmtNum(s.avgRequestsPerDay)}/Tag` },
-    { label: "Tokens", value: fmtTokens(s.tokens), sub: `${fmtTokens(s.outputTokens)} Output` },
-    {
-      label: "Realer Wert",
-      value: fmtUsd(s.realCost),
-      sub: "ohne Cache",
-      accent: true,
-      info: "Nur frischer Input + Output zu API-Preisen — der echte Arbeitsanteil, ohne den gecachten Kontext.",
-    },
-    {
-      label: "API-Gegenwert",
-      value: fmtUsd(s.apiCost),
-      sub: "inkl. Cache",
-      info: "Was diese Nutzung komplett per Pay-as-you-go-API kosten würde. NICHT dein Abo-Preis — dein Abo deckt das pauschal ab.",
-    },
+    { label: t("fig_requests"), value: fmtNum(s.requests), sub: `⌀ ${fmtNum(s.avgRequestsPerDay)}/${LANG === "en" ? "day" : "Tag"}` },
+    { label: t("fig_tokens"), value: fmtTokens(s.tokens), sub: `${fmtTokens(s.outputTokens)} Output` },
+    { label: t("fig_real"), value: fmtUsd(s.realCost), sub: t("fig_real_sub"), accent: true, info: t("info_real") },
+    { label: t("fig_api"), value: fmtUsd(s.apiCost), sub: t("fig_api_sub"), info: t("info_api") },
   ];
   $("#figures").innerHTML = figs
     .map(
@@ -119,11 +119,11 @@ function renderFigures(s) {
 function renderStats2(s) {
   const savedVsApi = s.apiCost; // API-Gegenwert = grob die "Ersparnis" ggü. Pay-as-you-go
   const stats = [
-    { label: "Aktive Tage", value: fmtNum(s.activeDays) },
-    { label: "Sessions", value: fmtNum(s.sessions), sub: `⌀ ${fmtNum(s.avgReqPerSession)} req` },
-    { label: "⌀ Output / Req", value: fmtNum(s.avgOutputPerReq) },
-    { label: "Limit-Treffer (429)", value: fmtNum(s.rateLimits), warn: s.rateLimits > 0 },
-    { label: "Seit Beginn", value: fmtUsd(s.allTimeApi), sub: "API-Wert kumuliert" },
+    { label: t("s_activedays"), value: fmtNum(s.activeDays) },
+    { label: t("s_sessions"), value: fmtNum(s.sessions), sub: t("s_sessions_sub", { n: fmtNum(s.avgReqPerSession) }) },
+    { label: t("s_output"), value: fmtNum(s.avgOutputPerReq) },
+    { label: t("s_limit"), value: fmtNum(s.rateLimits), warn: s.rateLimits > 0 },
+    { label: t("s_since"), value: fmtUsd(s.allTimeApi), sub: t("s_since_sub") },
   ];
   $("#stats2").innerHTML = stats
     .map(
@@ -137,7 +137,6 @@ function renderStats2(s) {
     .join("");
 }
 
-const WEEKDAYS = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 const chartReg = {}; // key -> Chart-Instanz (wird in place aktualisiert, nicht neu gebaut)
 
 // Erstellt den Chart einmalig, danach nur noch Daten-Update (kein Flackern).
@@ -217,13 +216,14 @@ function renderWork(w) {
     $("#workStats").innerHTML = "";
     return;
   }
-  $("#workTotal").textContent = `· ${fmtNum(w.totalHours)} h über ${w.days} Tage`;
+  $("#workTotal").textContent = t("work_total", { h: fmtNum(w.totalHours), n: w.days });
   const stats = [
-    { l: "Gesamt", v: fmtNum(w.totalHours) + " h" },
-    { l: "⌀ pro Tag", v: w.avgHours + " h" },
-    { l: "⌀ Start", v: w.avgStart },
-    { l: "⌀ Ende", v: w.avgEnd },
-    { l: "Längster Tag", v: (w.maxDay ? w.maxDay.hours + " h" : "—"), sub: w.maxDay ? w.maxDay.date.slice(5) : "" },
+    { l: t("w_total"), v: fmtNum(w.totalHours) + " h" },
+    { l: t("w_avg"), v: w.avgHours + " h" },
+    { l: t("w_start"), v: w.avgStart },
+    { l: t("w_end"), v: w.avgEnd },
+    { l: t("w_lph"), v: fmtNum(Math.round(w.linesPerHour || 0)), sub: t("w_lph_sub") },
+    { l: t("w_longest"), v: w.maxDay ? w.maxDay.hours + " h" : "—", sub: w.maxDay ? w.maxDay.date.slice(5) : "" },
   ];
   $("#workStats").innerHTML = stats
     .map(
@@ -243,7 +243,7 @@ function renderWork(w) {
     bp: 0.78,
     cp: 0.88,
     color: "#4f7a4a", // Arbeitszeit · grün
-    tip: (v) => v.toFixed(1) + " h aktiv",
+    tip: (v) => t("h_active", { h: v.toFixed(1) }),
     yfmt: (v) => v + "h",
   });
 }
@@ -252,10 +252,148 @@ function renderWork(w) {
 let patternsData = { hour: [], weekday: [], punch: [] };
 const patternMetric = { hour: "requests", week: "requests", punch: "requests" };
 const METRICS = {
-  requests: { get: (x) => x.requests || 0, tip: (v) => fmtNum(Math.round(v)) + " req", yfmt: (v) => fmtNum(v) },
-  lines: { get: (x) => x.lines || 0, tip: (v) => fmtNum(Math.round(v)) + " Zeilen", yfmt: (v) => fmtNum(v) },
-  cost: { get: (x) => x.cost || 0, tip: (v) => fmtUsd(v) + " real", yfmt: (v) => "$" + v },
+  requests: { get: (x) => x.requests || 0, tip: (v) => t("u_req", { n: fmtNum(Math.round(v)) }), yfmt: (v) => fmtNum(v) },
+  lines: { get: (x) => x.lines || 0, tip: (v) => t("u_lines", { n: fmtNum(Math.round(v)) }), yfmt: (v) => fmtNum(v) },
+  cost: { get: (x) => x.cost || 0, tip: (v) => t("u_cost", { v: fmtUsd(v) }), yfmt: (v) => "$" + v },
 };
+
+// --- Modell-Trend (gestapelt) --------------------------------------------
+const TREND_PALETTE = ["#17150f", "#b23a2e", "#c4922a", "#4a72a8", "#4f7a4a", "#8a5a8a", "#a0988a"];
+function modelTrendColor(model, i) {
+  if (model.includes("opus")) return "#17150f";
+  if (model.includes("sonnet")) return "#b23a2e";
+  if (model.includes("haiku")) return "#4f7a4a";
+  if (model === "andere") return "#a0988a";
+  return TREND_PALETTE[i % TREND_PALETTE.length];
+}
+
+function modelDisp(model) {
+  return model === "andere" ? t("other") : modelLabel(model);
+}
+
+function drawModelTrend(trend) {
+  trend = trend || { days: [], datasets: [] };
+  const labels = trend.days.map((d) => (currentDays > 31 ? d.slice(5).replace("-", ".") : d.slice(8, 10)));
+  const datasets = trend.datasets.map((ds, i) => ({
+    label: modelDisp(ds.model),
+    data: ds.data,
+    backgroundColor: modelTrendColor(ds.model, i),
+    borderWidth: 0,
+    barPercentage: 0.92,
+    categoryPercentage: 0.96,
+  }));
+  $("#trendInfo").textContent = trend.days.length ? t("trend_info", { m: trend.datasets.length, n: trend.days.length }) : "";
+  $("#trendLegend").innerHTML = trend.datasets
+    .map(
+      (ds, i) =>
+        `<span class="tl"><span class="tl-sw" style="background:${modelTrendColor(ds.model, i)}"></span>${escapeHtml(modelDisp(ds.model))}</span>`
+    )
+    .join("");
+  upsertStacked("trend", "#trendChart", labels, datasets);
+}
+
+function upsertStacked(key, sel, labels, datasets) {
+  const ex = chartReg[key];
+  if (ex) {
+    ex.data.labels = labels;
+    ex.data.datasets = datasets;
+    ex.update("none");
+    return;
+  }
+  const ctx = $(sel).getContext("2d");
+  chartReg[key] = new Chart(ctx, {
+    type: "bar",
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "#17150f",
+          padding: 7,
+          titleFont: { family: "JetBrains Mono", size: 11 },
+          bodyFont: { family: "JetBrains Mono", size: 11 },
+          callbacks: { label: (i) => `${i.dataset.label}: ${fmtNum(i.raw)} req` },
+        },
+      },
+      scales: {
+        x: {
+          stacked: true,
+          grid: { display: false },
+          border: { color: "#17150f", width: 1.5 },
+          ticks: { font: { family: "JetBrains Mono", size: 9 }, color: "#8a8578", maxRotation: 0, autoSkip: true, maxTicksLimit: 14 },
+        },
+        y: {
+          stacked: true,
+          beginAtZero: true,
+          grid: { color: "#d8d3c5" },
+          border: { display: false },
+          ticks: { font: { family: "JetBrains Mono", size: 9 }, color: "#8a8578", maxTicksLimit: 4 },
+        },
+      },
+    },
+  });
+}
+
+// --- Top-Dateien ----------------------------------------------------------
+function renderTopFiles(files) {
+  files = files || [];
+  $("#filesBody").innerHTML = files
+    .map(
+      (f) => `
+      <tr>
+        <td><span class="proj-name" title="${escapeHtml(f.path)}">${escapeHtml(f.name)}</span></td>
+        <td>${escapeHtml(f.project || "—")}</td>
+        <td class="r">${fmtNum(f.edits)}</td>
+        <td class="r td-red">${fmtNum(f.lines)}</td>
+      </tr>`
+    )
+    .join("");
+}
+
+// --- 429-Rate-Limit-Heatmap ----------------------------------------------
+function renderRateHeatmap(grid) {
+  grid = grid || [];
+  const total = grid.reduce((s, c) => s + c.value, 0);
+  $("#rateInfo").textContent = total ? t("rate_total", { n: fmtNum(total) }) : t("rate_none");
+  const max = Math.max(...grid.map((c) => c.value), 0.0001);
+  const order = [1, 2, 3, 4, 5, 6, 0];
+  const map = {};
+  for (const c of grid) map[c.dow * 24 + c.hour] = c.value;
+  const cells = [];
+  for (const dow of order) {
+    for (let h = 0; h < 24; h++) {
+      const v = map[dow * 24 + h] || 0;
+      const lvl = v > 0 ? Math.min(4, Math.ceil((v / max) * 4)) : 0;
+      const tip = t("tip_429", { w: WD_I18N[LANG][dow], h: pad2(h), n: v });
+      cells.push(`<div class="punch-cell l${lvl}" data-tip="${escapeHtml(tip)}"></div>`);
+    }
+  }
+  $("#rateGrid").innerHTML = cells.join("");
+  $("#rateWd").innerHTML = order.map((i) => `<span>${WD_I18N[LANG][i]}</span>`).join("");
+  $("#rateHours").innerHTML = Array.from({ length: 24 }, (_, h) => `<span>${h % 3 === 0 ? pad2(h) : ""}</span>`).join("");
+  setupRateTip();
+}
+let rateTipReady = false;
+function setupRateTip() {
+  if (rateTipReady) return;
+  rateTipReady = true;
+  const tip = $("#rateTip");
+  const grid = $("#rateGrid");
+  grid.addEventListener("mouseover", (e) => {
+    const c = e.target.closest(".punch-cell");
+    if (!c) return;
+    tip.innerHTML = c.dataset.tip;
+    const r = c.getBoundingClientRect();
+    tip.style.left = r.left + r.width / 2 + "px";
+    tip.style.top = r.top + "px";
+    tip.classList.remove("hidden");
+  });
+  grid.addEventListener("mouseout", (e) => {
+    if (e.target.closest(".punch-cell")) tip.classList.add("hidden");
+  });
+}
 
 function drawHourChart() {
   const m = METRICS[patternMetric.hour];
@@ -269,7 +407,7 @@ function drawWeekChart() {
   const m = METRICS[patternMetric.week];
   const order = [1, 2, 3, 4, 5, 6, 0]; // Mo..So
   const byDow = new Map((patternsData.weekday || []).map((w) => [w.dow, w]));
-  const labels = order.map((i) => WEEKDAYS[i]);
+  const labels = order.map((i) => WD_I18N[LANG][i]);
   const values = order.map((i) => m.get(byDow.get(i) || {}));
   upsertBar("week", "#weekChart", labels, values, { maxTicks: 7, bp: 0.6, color: "#4a72a8", tip: m.tip, yfmt: m.yfmt });
 }
@@ -283,7 +421,7 @@ function renderPunch() {
   }
   const max = Math.max(...data.map(m.get), 0.0001);
   const total = data.reduce((s, x) => s + m.get(x), 0);
-  $("#punchInfo").textContent = total ? `· ${m.tip(total)} gesamt` : "";
+  $("#punchInfo").textContent = total ? t("punch_total", { v: m.tip(total) }) : "";
 
   const order = [1, 2, 3, 4, 5, 6, 0]; // Mo..So
   const cells = [];
@@ -292,14 +430,14 @@ function renderPunch() {
       const c = data[dow * 24 + h] || { requests: 0, cost: 0, lines: 0 };
       const v = m.get(c);
       const lvl = v > 0 ? Math.min(4, Math.ceil((v / max) * 4)) : 0;
-      const tip = `${WEEKDAYS[dow]} ${pad2(h)}:00 · ${v > 0 ? m.tip(v) : "—"}`;
+      const tip = `${WD_I18N[LANG][dow]} ${pad2(h)}:00 · ${v > 0 ? m.tip(v) : "—"}`;
       cells.push(`<div class="punch-cell l${lvl}" data-tip="${escapeHtml(tip)}"></div>`);
     }
   }
   $("#punch").innerHTML = cells.join("");
 
   // Wochentags-Labels (Mo..So) + Stundenlabels (alle 3 h)
-  $("#punchWd").innerHTML = order.map((i) => `<span>${WEEKDAYS[i]}</span>`).join("");
+  $("#punchWd").innerHTML = order.map((i) => `<span>${WD_I18N[LANG][i]}</span>`).join("");
   $("#punchHours").innerHTML = Array.from({ length: 24 }, (_, h) => `<span>${h % 3 === 0 ? pad2(h) : ""}</span>`).join("");
 
   setupPunchTip();
@@ -329,15 +467,14 @@ function pad2(n) {
   return n < 10 ? "0" + n : "" + n;
 }
 
-const WD = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
-const MON = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+const WD_MO = () => [1, 2, 3, 4, 5, 6, 0].map((i) => WD_I18N[LANG][i]); // Mo..So
 
 let heatData = [];
 let currentHeatMetric = "requests";
 const HEAT_METRICS = {
-  requests: { get: (x) => x.requests || 0, tip: (x) => `<b>${fmtNum(x.requests)}</b> req`, total: (v) => `· ${fmtNum(v)} req` },
-  hours: { get: (x) => x.hours || 0, tip: (x) => `<b>${(x.hours || 0).toFixed(1)}</b> h aktiv`, total: (v) => `· ${fmtNum(Math.round(v))} h` },
-  cost: { get: (x) => x.cost || 0, tip: (x) => `<b>${fmtUsd(x.cost)}</b> real`, total: (v) => `· ${fmtUsd(v)}` },
+  requests: { get: (x) => x.requests || 0, tip: (x) => t("tip_req", { n: `<b>${fmtNum(x.requests)}</b>` }), total: (v) => t("cal_req_total", { n: fmtNum(v) }) },
+  hours: { get: (x) => x.hours || 0, tip: (x) => t("tip_hours", { h: `<b>${(x.hours || 0).toFixed(1)}</b>` }), total: (v) => t("cal_hours_total", { n: fmtNum(Math.round(v)) }) },
+  cost: { get: (x) => x.cost || 0, tip: (x) => t("tip_cost", { v: `<b>${fmtUsd(x.cost)}</b>` }), total: (v) => t("cal_cost_total", { v: fmtUsd(v) }) },
 };
 
 // Requests- und Stunden-Daten pro Tag zusammenführen.
@@ -383,12 +520,12 @@ function renderCalendar() {
       const h = map.get(ds);
       const v = h ? cfg.get(h) : 0;
       const lvl = v > 0 ? Math.min(4, Math.ceil((v / max) * 4)) : 0;
-      const tip = h && v > 0 ? cfg.tip(h) : "keine Aktivität";
+      const tip = h && v > 0 ? cfg.tip(h) : t("no_activity");
       cells.push(`<div class="heat-cell l${lvl}${ds === todayStr ? " today" : ""}" data-d="${ds}" data-tip="${escapeHtml(tip)}"></div>`);
     }
   }
   $("#heatmap").innerHTML = cells.join("");
-  $("#heatWd").innerHTML = WD.map((w) => `<span>${w}</span>`).join("");
+  $("#heatWd").innerHTML = WD_MO().map((w) => `<span>${w}</span>`).join("");
 
   let lastMon = -1;
   $("#heatMonths").innerHTML = weeks
@@ -396,7 +533,7 @@ function renderCalendar() {
       const m = w[0].getUTCMonth();
       if (m !== lastMon) {
         lastMon = m;
-        return `<span>${MON[m]}</span>`;
+        return `<span>${MON_I18N[LANG][m]}</span>`;
       }
       return `<span></span>`;
     })
@@ -413,7 +550,7 @@ function setupHeatTip() {
   const grid = $("#heatmap");
   const show = (cell) => {
     const ds = cell.dataset.d;
-    const date = new Date(ds + "T00:00:00Z").toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
+    const date = new Date(ds + "T00:00:00Z").toLocaleDateString(loc(), { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
     tip.innerHTML = `${cell.dataset.tip}<br>${date}`;
     const rect = cell.getBoundingClientRect();
     tip.style.left = rect.left + rect.width / 2 + "px";
@@ -443,7 +580,7 @@ function langColor(lang, i) {
 // --- Projekt-Dropdown (durchsuchbar) -------------------------------------
 function populateProjects(filter = "") {
   const f = filter.trim().toLowerCase();
-  const opts = [{ name: "__all__", label: "Alle Projekte", lines: allProjects.reduce((s, p) => s + p.lines, 0) }];
+  const opts = [{ name: "__all__", label: t("all_projects"), lines: allProjects.reduce((s, p) => s + p.lines, 0) }];
   for (const p of allProjects) {
     if (!f || p.name.toLowerCase().includes(f)) opts.push({ name: p.name, label: p.name, lines: p.lines });
   }
@@ -451,7 +588,7 @@ function populateProjects(filter = "") {
     .map(
       (o) => `<div class="ps-opt ${o.name === currentProject ? "active" : ""}" data-p="${escapeHtml(o.name)}">
         <span class="o-name">${escapeHtml(o.label)}</span>
-        <span class="o-lines">${fmtNum(o.lines)} Z</span>
+        <span class="o-lines">${fmtNum(o.lines)} ${t("unit_lines_short")}</span>
       </div>`
     )
     .join("");
@@ -463,7 +600,7 @@ function populateProjects(filter = "") {
 function selectProject(name) {
   currentProject = name;
   $("#psBtn").innerHTML =
-    (name === "__all__" ? "Alle Projekte" : escapeHtml(name)) + ` <span class="ps-caret">▾</span>`;
+    (name === "__all__" ? t("all_projects") : escapeHtml(name)) + ` <span class="ps-caret">▾</span>`;
   closeProjMenu();
   if (name === "__all__") {
     // aus dem nächsten /api/local kommt die Gesamtansicht; sofort separat laden
@@ -497,7 +634,7 @@ function closeProjMenu() {
 function renderLanguages(langs) {
   langs = (langs || []).filter((l) => l.lines > 0);
   const total = langs.reduce((s, l) => s + l.lines, 0);
-  $("#langTotal").textContent = total ? `· ${fmtNum(total)} Zeilen über ${langs.length} Sprachen` : "";
+  $("#langTotal").textContent = total ? t("langs_total", { n: fmtNum(total), c: langs.length }) : "";
   if (!total) {
     $("#langStack").innerHTML = "";
     $("#langList").innerHTML = "";
@@ -526,8 +663,8 @@ function renderLanguages(langs) {
         <span class="l-sw" style="background:${langColor(l.lang, i)}"></span>
         <span class="l-name">${escapeHtml(l.lang)}</span>
         <span class="l-bar"></span>
-        <span class="l-lines">${fmtNum(l.lines)} Z</span>
-        <span class="l-meta">${pct}% · ${fmtNum(l.files)} Dat</span>
+        <span class="l-lines">${fmtNum(l.lines)} ${t("unit_lines_short")}</span>
+        <span class="l-meta">${t("lang_meta", { pct, n: fmtNum(l.files) })}</span>
       </div>`;
     })
     .join("");
@@ -541,8 +678,8 @@ function renderSplit(s) {
     `<div class="seg-cache" style="width:${cachePct}%"></div>` +
     `<div class="seg-real" style="width:${realPct}%"></div>`;
   $("#splitLegend").innerHTML = `
-    <div class="leg"><span class="swatch cache"></span> <b>${cachePct}%</b> <span>gecachter Kontext</span></div>
-    <div class="leg"><span class="swatch real"></span> <b>${realPct}%</b> <span>echte Arbeit (${fmtUsd(s.realCost)})</span></div>`;
+    <div class="leg"><span class="swatch cache"></span> <b>${cachePct}%</b> <span>${t("leg_cache")}</span></div>
+    <div class="leg"><span class="swatch real"></span> <b>${realPct}%</b> <span>${t("leg_real", { v: fmtUsd(s.realCost) })}</span></div>`;
 }
 
 function renderModels(byModel) {
@@ -569,7 +706,7 @@ function renderModels(byModel) {
 
   $("#modelFoot").innerHTML = `
     <tr>
-      <td class="lbl">Summe</td>
+      <td class="lbl">${t("sum")}</td>
       <td class="r">${fmtNum(tReq)}</td>
       <td class="r">${fmtTokens(tTok)}</td>
       <td class="r td-red">${fmtUsd(tReal)}</td>
@@ -604,7 +741,7 @@ function renderProjects(byProject, totalReq) {
     const pct = Math.round((rReq / tot) * 100);
     rows += `
       <tr>
-        <td><span class="proj-name muted-name">+ ${rest.length} weitere</span></td>
+        <td><span class="proj-name muted-name">${t("more_n", { n: rest.length })}</span></td>
         <td class="r">${fmtNum(rReq)}</td>
         <td class="r">${fmtTokens(rTok)}</td>
         <td class="r td-red">${fmtUsd(rReal)}</td>
@@ -668,26 +805,26 @@ async function pollLive() {
 function renderLive(d) {
   lastEventTs = d.lastEventTs;
   updateAgo();
-  const t = d.today;
+  const today = d.today;
 
   // Hero: Heute-Zahlen zählen flüssig hoch
-  setTarget("heroReq", t.requests, (v) => fmtNum(Math.round(v)));
-  setTarget("heroReal", t.realCost, (v) => fmtUsd(v));
-  setTarget("heroTok", t.tokens, (v) => fmtTokens(Math.round(v)));
-  if (prevToday.requests !== undefined && prevToday.requests !== t.requests) flashEl("#heroReq");
-  const pct = Math.min(100, Math.round((t.requests / Math.max(1, d.busiestRequests)) * 100));
+  setTarget("heroReq", today.requests, (v) => fmtNum(Math.round(v)));
+  setTarget("heroReal", today.realCost, (v) => fmtUsd(v));
+  setTarget("heroTok", today.tokens, (v) => fmtTokens(Math.round(v)));
+  if (prevToday.requests !== undefined && prevToday.requests !== today.requests) flashEl("#heroReq");
+  const pct = Math.min(100, Math.round((today.requests / Math.max(1, d.busiestRequests)) * 100));
   $("#heroFill").style.width = pct + "%";
-  const record = t.requests >= d.busiestRequests && t.requests > 0;
+  const record = today.requests >= d.busiestRequests && today.requests > 0;
   $("#heroScale").textContent = record
-    ? `🔥 REKORDTAG! ${fmtNum(t.requests)} req`
-    : `${pct}% vom stärksten Tag (${fmtNum(d.busiestRequests)} req)`;
+    ? t("record", { n: fmtNum(today.requests) })
+    : t("of_peak", { pct, n: fmtNum(d.busiestRequests) });
 
   // Rate
-  $("#liveRate").textContent = `${d.rate.perMin1}/min · ${d.rate.perMin5} in 5 min · ${d.rate.perMin60} in 60 min`;
+  $("#liveRate").textContent = t("rate", { a: d.rate.perMin1, b: d.rate.perMin5, c: d.rate.perMin60 });
 
   renderTiles(d);
   appendConsole(d.recent || []);
-  prevToday = t;
+  prevToday = today;
 }
 
 function renderTiles(d) {
@@ -695,23 +832,23 @@ function renderTiles(d) {
   const yReq = d.yesterday.requests || 0;
   const diff = yReq ? Math.round(((d.today.requests - yReq) / yReq) * 100) : 0;
   const tiles = [
-    { l: "Burn-Rate", v: fmtUsd(d.burn.perHour) + "/h", sub: "real · API " + fmtUsd(d.burn.apiPerHour) + "/h" },
-    { l: "Tokens / min", v: fmtNum(d.burn.tokensPerMin), sub: "letzte 5 min" },
-    { l: "Aktive Session", v: fmtNum(s.requests || 0) + " req", sub: `${s.durationMin || 0} min · ${escapeHtml(s.project || "—")}` },
-    { l: "Streak", v: (d.streak || 0) + " Tage", sub: "in Folge aktiv" },
-    { l: "$ / Request", v: fmtUsd(d.today.costPerReq), sub: `Cache ${d.today.cachePct}%` },
+    { l: t("tile_burn"), v: fmtUsd(d.burn.perHour) + "/h", sub: t("tile_burn_sub", { v: fmtUsd(d.burn.apiPerHour) }) },
+    { l: t("tile_tpm"), v: fmtNum(d.burn.tokensPerMin), sub: t("tile_tpm_sub") },
+    { l: t("tile_session"), v: fmtNum(s.requests || 0) + " req", sub: t("tile_session_sub", { min: s.durationMin || 0, proj: escapeHtml(s.project || "—") }) },
+    { l: t("tile_streak"), v: (d.streak || 0) + " " + t("days"), sub: t("tile_streak_sub") },
+    { l: t("tile_perreq"), v: fmtUsd(d.today.costPerReq), sub: t("tile_perreq_sub", { pct: d.today.cachePct }) },
     {
-      l: "Heute vs gestern",
+      l: t("tile_vs"),
       v: `<span class="${diff >= 0 ? "t-up" : "t-down"}">${diff >= 0 ? "+" : ""}${diff}%</span>`,
-      sub: `${fmtNum(yReq)} gestern`,
+      sub: t("tile_vs_sub", { n: fmtNum(yReq) }),
     },
   ];
   $("#liveTiles").innerHTML = tiles
     .map(
-      (t) => `<div class="tile">
-        <div class="t-label">${t.l}</div>
-        <div class="t-value">${t.v}</div>
-        ${t.sub ? `<div class="t-sub">${t.sub}</div>` : ""}
+      (ti) => `<div class="tile">
+        <div class="t-label">${ti.l}</div>
+        <div class="t-value">${ti.v}</div>
+        ${ti.sub ? `<div class="t-sub">${ti.sub}</div>` : ""}
       </div>`
     )
     .join("");
@@ -789,11 +926,11 @@ function updateAgo() {
   }
   const sec = Math.max(0, Math.round((Date.now() - new Date(lastEventTs).getTime()) / 1000));
   let txt;
-  if (sec < 5) txt = "gerade eben";
-  else if (sec < 60) txt = `vor ${sec}s`;
-  else if (sec < 3600) txt = `vor ${Math.floor(sec / 60)} min`;
-  else txt = `vor ${Math.floor(sec / 3600)} h`;
-  $("#liveAgo").textContent = `letztes Event ${txt}`;
+  if (sec < 5) txt = t("just_now");
+  else if (sec < 60) txt = t("ago_s", { n: sec });
+  else if (sec < 3600) txt = t("ago_m", { n: Math.floor(sec / 60) });
+  else txt = t("ago_h", { n: Math.floor(sec / 3600) });
+  $("#liveAgo").textContent = t("last_event", { ago: txt });
 }
 
 // Zeitraum-Umschalter
@@ -848,7 +985,26 @@ $("#refreshBtn").addEventListener("click", () => {
   pollLive();
 });
 
+// Sprach-Umschalter (DE/EN)
+function markLang() {
+  $("#langSwitch")
+    .querySelectorAll("button")
+    .forEach((b) => b.classList.toggle("active", b.dataset.l === LANG));
+}
+$("#langSwitch")
+  .querySelectorAll("button")
+  .forEach((b) =>
+    b.addEventListener("click", () => {
+      setLang(b.dataset.l); // aktualisiert statische [data-i18n]
+      markLang();
+      $("#period").textContent = rangeName(currentDays);
+      if (lastData) render(lastData); // dynamische Teile neu rendern
+    })
+  );
+
 // Initiales Laden
+applyStaticI18n();
+markLang();
 load();
 pollLive();
 

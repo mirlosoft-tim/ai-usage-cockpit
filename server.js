@@ -186,6 +186,21 @@ app.get("/api/local", async (req, res) => {
   // Arbeitsstunden pro Tag über ALLE Zeit (für den zweiten Kalender)
   const workHeatmap = store.workdays(null, 25).map((r) => ({ date: r.day, hours: r2(r.active_min / 60), requests: r.requests }));
 
+  // Zusätzliche Analysen
+  const topFiles = store.topFiles(since, null, 15).map((f) => ({
+    path: f.path,
+    name: f.path.replace(/[/\\]+$/, "").split(/[/\\]+/).pop() || f.path,
+    project: f.project,
+    lang: f.lang,
+    edits: f.edits,
+    lines: f.lines,
+  }));
+  const modelTrend = buildModelTrend(store.modelByDay(since));
+  const rateHeatmap = buildGrid(store.errorDowHour(since), "n");
+  const totalLines = byLanguage.reduce((s, l) => s + l.lines, 0);
+  work.linesPerHour = work.totalHours > 0 ? r2(totalLines / work.totalHours) : 0;
+  work.totalLines = totalLines;
+
   res.json({
     generatedAt: new Date().toISOString(),
     found: true,
@@ -202,6 +217,9 @@ app.get("/api/local", async (req, res) => {
     codeProjects,
     work,
     workHeatmap,
+    topFiles,
+    modelTrend,
+    rateHeatmap,
   });
 });
 
@@ -238,6 +256,40 @@ function buildPatterns(since) {
     punch[idx[r.dow * 24 + r.hour]].lines = r.lines;
   }
   return { hour, weekday, punch };
+}
+
+// 7×24-Gitter aus dow/hour-Zeilen (für Heatmaps).
+function buildGrid(rows, valKey) {
+  const grid = [];
+  const idx = {};
+  for (let d = 0; d < 7; d++)
+    for (let h = 0; h < 24; h++) {
+      idx[d * 24 + h] = grid.length;
+      grid.push({ dow: d, hour: h, value: 0 });
+    }
+  for (const r of rows) {
+    const i = idx[r.dow * 24 + r.hour];
+    if (i != null) grid[i].value = r[valKey] || 0;
+  }
+  return grid;
+}
+
+// Modell-Trend: pro Tag, Top-6-Modelle + "andere", als Stacked-Datasets.
+function buildModelTrend(rows) {
+  const days = [...new Set(rows.map((r) => r.day))].sort();
+  const totals = {};
+  for (const r of rows) totals[r.model] = (totals[r.model] || 0) + r.requests;
+  const ranked = Object.keys(totals).sort((a, b) => totals[b] - totals[a]);
+  const keep = new Set(ranked.slice(0, 6));
+  const dayIdx = Object.fromEntries(days.map((d, i) => [d, i]));
+  const series = {};
+  const ensure = (m) => (series[m] = series[m] || new Array(days.length).fill(0));
+  for (const r of rows) {
+    const m = keep.has(r.model) ? r.model : "andere";
+    ensure(m)[dayIdx[r.day]] += r.requests;
+  }
+  const order = [...ranked.filter((m) => keep.has(m)), ...(series["andere"] ? ["andere"] : [])];
+  return { days, datasets: order.map((m) => ({ model: m, data: series[m] })) };
 }
 
 function hhmm(date) {

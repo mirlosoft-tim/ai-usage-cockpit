@@ -96,6 +96,12 @@ export function getDb() {
   const codeHasHour = codeInfo.some((c) => c.name === "hour");
   if (codeExists && !codeHasHour) db.exec("DROP TABLE code;");
 
+  // errors-Tabelle: braucht hour/dow (für die 429-Heatmap)
+  const errInfo = db.prepare("PRAGMA table_info(errors)").all();
+  const errExists = errInfo.length > 0;
+  const errHasHour = errInfo.some((c) => c.name === "hour");
+  if (errExists && !errHasHour) db.exec("DROP TABLE errors;");
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS events (
       id TEXT PRIMARY KEY,
@@ -107,7 +113,7 @@ export function getDb() {
     CREATE INDEX IF NOT EXISTS idx_events_model ON events(model);
     CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
     CREATE TABLE IF NOT EXISTS errors (
-      id TEXT PRIMARY KEY, ts TEXT, day TEXT, status INTEGER
+      id TEXT PRIMARY KEY, ts TEXT, day TEXT, hour INTEGER, dow INTEGER, status INTEGER
     );
     CREATE TABLE IF NOT EXISTS code (
       id TEXT PRIMARY KEY, ts TEXT, day TEXT, hour INTEGER, dow INTEGER,
@@ -120,7 +126,7 @@ export function getDb() {
     );
   `);
 
-  if (!codeExists || !codeHasHour) db.exec("DELETE FROM ingest_state;");
+  if (!codeExists || !codeHasHour || (errExists && !errHasHour)) db.exec("DELETE FROM ingest_state;");
   return db;
 }
 
@@ -156,7 +162,7 @@ export function ingest(claudePath) {
        input, output, cache_read, cw5, cw1)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `);
-  const insError = d.prepare("INSERT OR IGNORE INTO errors(id, ts, day, status) VALUES(?,?,?,?)");
+  const insError = d.prepare("INSERT OR IGNORE INTO errors(id, ts, day, hour, dow, status) VALUES(?,?,?,?,?,?)");
   const insCode = d.prepare(
     "INSERT OR IGNORE INTO code(id, ts, day, hour, dow, session, project, path, ext, lang, lines, op) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)"
   );
@@ -198,7 +204,7 @@ export function ingest(claudePath) {
         const day = ts.slice(0, 10);
 
         if (o.apiErrorStatus || o.error === "rate_limit") {
-          insError.run(o.uuid || `${o.requestId || ""}|${ts}`, ts, day, Number(o.apiErrorStatus) || 0);
+          insError.run(o.uuid || `${o.requestId || ""}|${ts}`, ts, day, dt.getHours(), dt.getDay(), Number(o.apiErrorStatus) || 0);
         }
 
         if (o.type !== "assistant") continue;
@@ -426,6 +432,47 @@ export function byLanguage(since, project) {
        FROM code${w} GROUP BY lang ORDER BY lines DESC`
     )
     .all(...a);
+}
+
+// Am häufigsten bearbeitete Dateien.
+export function topFiles(since, project, limit = 15) {
+  const where = [];
+  const a = [];
+  if (since) {
+    where.push("day >= ?");
+    a.push(since);
+  }
+  if (project) {
+    where.push("project = ?");
+    a.push(project);
+  }
+  const w = where.length ? " WHERE " + where.join(" AND ") : "";
+  a.push(limit);
+  return getDb()
+    .prepare(
+      `SELECT path, MAX(project) AS project, MAX(lang) AS lang,
+              COUNT(*) AS edits, COALESCE(SUM(lines),0) AS lines
+       FROM code${w} GROUP BY path ORDER BY edits DESC, lines DESC LIMIT ?`
+    )
+    .all(...a);
+}
+
+// Modell-Nutzung pro Tag (für den Trend, frontend baut Stacked-Bars).
+export function modelByDay(since) {
+  return getDb()
+    .prepare(
+      `SELECT day, model, COUNT(*) AS requests, COALESCE(SUM(${REAL}),0) AS cost
+       FROM events${whereSince(since)} GROUP BY day, model ORDER BY day`
+    )
+    .all(...args(since));
+}
+
+// 429-Rate-Limit-Treffer nach Wochentag×Stunde (für die Heatmap).
+export function errorDowHour(since) {
+  const w = since ? " WHERE day >= ? AND status = 429" : " WHERE status = 429";
+  return getDb()
+    .prepare(`SELECT dow, hour, COUNT(*) AS n FROM errors${w} GROUP BY dow, hour`)
+    .all(...(since ? [since] : []));
 }
 
 // Projekte mit Code-Aktivität (für das Dropdown).
